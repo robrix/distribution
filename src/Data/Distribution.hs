@@ -1,5 +1,6 @@
 {-# LANGUAGE GADTs, RankNTypes #-}
 module Data.Distribution where
+
 import System.Random
 
 data Expr a where
@@ -20,6 +21,7 @@ data Expr a where
   If :: Expr Bool -> Expr a -> Expr a -> Expr a
 
   Map :: (b -> a) -> Expr b -> Expr a
+  App :: (b -> c -> a) -> Expr b -> Expr c -> Expr a
 data Var a where
   Double :: String -> Var Double
   Bool :: String -> Var Bool
@@ -64,6 +66,7 @@ sample n env expr
     If c a b -> zipWith3 ifThenElse <$> sample' c <*> sample' a <*> sample' b
 
     Map f a -> fmap f <$> sample' a
+    App f a b -> zipWith f <$> sample' a <*> sample' b
   | otherwise = pure []
   where sample' :: Expr a -> IO [a]
         sample' = sample n env
@@ -72,6 +75,10 @@ sample n env expr
 
 instance Functor Expr where
   fmap = Map
+
+instance Applicative Expr where
+  pure = Lit
+  (<*>) = App ($)
 
 instance Num a => Num (Expr a) where
   (+) = Add
