@@ -21,6 +21,22 @@ data Var a where
   Bool :: String -> Var Bool
   Int :: String -> Var Int
 
+type Env = forall a. Var a -> [a]
+
+lookupEnv :: Env -> Var a -> [a]
+lookupEnv = id
+
+emptyEnv :: Env
+emptyEnv (Double v) = error ("unbound double variable " ++ v)
+emptyEnv (Bool v) = error ("unbound bool variable " ++ v)
+emptyEnv (Int v) = error ("unbound int variable " ++ v)
+
+extendEnv :: Var a -> [a] -> Env -> Env
+extendEnv (Double v) x _ (Double v') | v == v' = x
+extendEnv (Bool v) x _ (Bool v') | v == v' = x
+extendEnv (Int v) x _ (Int v') | v == v' = x
+extendEnv _ _ env v' = env v'
+
 
 instance Num a => Num (Expr a) where
   (+) = Add
