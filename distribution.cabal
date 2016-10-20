@@ -16,6 +16,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Data.Distribution
   build-depends:       base >= 4.7 && < 5
+                     , random
   default-language:    Haskell2010
 
 test-suite distribution-test
