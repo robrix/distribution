@@ -1,6 +1,7 @@
 {-# LANGUAGE GADTs, RankNTypes #-}
 module Data.Distribution where
 
+import Control.Monad
 import System.Random
 
 data Expr a where
@@ -22,6 +23,7 @@ data Expr a where
 
   Map :: (b -> a) -> Expr b -> Expr a
   App :: (b -> c -> a) -> Expr b -> Expr c -> Expr a
+  Join :: Expr (Expr a) -> Expr a
 data Var a where
   Double :: String -> Var Double
   Bool :: String -> Var Bool
@@ -67,6 +69,9 @@ sample n env expr
 
     Map f a -> fmap f <$> sample' a
     App f a b -> zipWith f <$> sample' a <*> sample' b
+    Join a -> do
+      a' <- sample' a
+      join <$> traverse sample' a'
   | otherwise = pure []
   where sample' :: Expr a -> IO [a]
         sample' = sample n env
@@ -79,6 +84,10 @@ instance Functor Expr where
 instance Applicative Expr where
   pure = Lit
   (<*>) = App ($)
+
+instance Monad Expr where
+  return = pure
+  a >>= f = Join (fmap f a)
 
 instance Num a => Num (Expr a) where
   (+) = Add
