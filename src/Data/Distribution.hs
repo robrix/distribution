@@ -16,6 +16,7 @@ data Expr a where
   Less :: Ord a => Expr a -> Expr a -> Expr Bool
   If :: Expr Bool -> Expr a -> Expr a -> Expr a
 
+  Map :: (b -> a) -> Expr b -> Expr a
 data Var a where
   Double :: String -> Var Double
   Bool :: String -> Var Bool
@@ -56,11 +57,16 @@ sample n env expr
     Less a b -> zipWith (<) <$> sample' a <*> sample' b
 
     If c a b -> zipWith3 ifThenElse <$> sample' c <*> sample' a <*> sample' b
+
+    Map f a -> fmap f <$> sample' a
   | otherwise = pure []
   where sample' :: Expr a -> IO [a]
         sample' = sample n env
         ifThenElse c a b = if c then a else b
 
+
+instance Functor Expr where
+  fmap = Map
 
 instance Num a => Num (Expr a) where
   (+) = Add
