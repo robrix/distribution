@@ -75,3 +75,7 @@ instance Num a => Num (Expr a) where
   signum = Sig
   fromInteger = Lit . fromInteger
   negate = Neg
+
+instance Fractional a => Fractional (Expr a) where
+  fromRational = Lit . fromRational
+  recip = fmap recip
