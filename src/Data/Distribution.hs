@@ -73,9 +73,7 @@ sample env expr = case expr of
   Map f a -> f <$> sample' a
   App f a b -> f <$> sample' a <*> sample' b
   Alt a b -> sample' a <|> sample' b
-  Join a -> do
-    a' <- sample' a
-    sample' a'
+  Join a -> sample' a >>= sample'
   where sample' :: Expr a -> IO a
         sample' = sample env
         ifThenElse c a b = if c then a else b
