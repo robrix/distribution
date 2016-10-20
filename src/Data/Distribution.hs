@@ -11,6 +11,9 @@ data Expr a where
   Neg :: Num a => Expr a -> Expr a
   Abs :: Num a => Expr a -> Expr a
   Sig :: Num a => Expr a -> Expr a
+  Exp :: Floating a => Expr a -> Expr a
+  Log :: Floating a => Expr a -> Expr a
+
   Add :: Num a => Expr a -> Expr a -> Expr a
   Mul :: Num a => Expr a -> Expr a -> Expr a
   Less :: Ord a => Expr a -> Expr a -> Expr Bool
@@ -51,6 +54,8 @@ sample n env expr
     Neg e -> fmap negate <$> sample' e
     Abs e -> fmap abs <$> sample' e
     Sig e -> fmap signum <$> sample' e
+    Exp e -> fmap exp <$> sample' e
+    Log e -> fmap log <$> sample' e
     Add a b -> zipWith (+) <$> sample' a <*> sample' b
     Mul a b -> zipWith (*) <$> sample' a <*> sample' b
 
@@ -79,3 +84,20 @@ instance Num a => Num (Expr a) where
 instance Fractional a => Fractional (Expr a) where
   fromRational = Lit . fromRational
   recip = fmap recip
+
+instance Floating a => Floating (Expr a) where
+  pi = Lit pi
+  exp = Exp
+  log = Log
+  sin = fmap sin
+  cos = fmap cos
+  tan = fmap tan
+  asin = fmap asin
+  acos = fmap acos
+  atan = fmap atan
+  sinh = fmap sinh
+  cosh = fmap cosh
+  tanh = fmap tanh
+  asinh = fmap asinh
+  acosh = fmap acosh
+  atanh = fmap atanh
