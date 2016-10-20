@@ -3,6 +3,7 @@ module Data.Distribution where
 
 import Control.Applicative
 import Control.Monad
+import Data.List (partition, sortOn)
 import Data.Semigroup
 import System.Random
 
@@ -81,6 +82,40 @@ sample n env expr
   where sample' :: Expr a -> IO [a]
         sample' = sample n env
         ifThenElse c a b = if c then a else b
+
+histogramFrom :: Real a => a -> a -> [a] -> [Int]
+histogramFrom from width samples
+  | null samples = []
+  | otherwise = length here : histogramFrom (from + width) width rest
+  where (here, rest) = partition (<= from + width) samples
+
+sparkify :: [Int] -> String
+sparkify bins
+  | null bins = ""
+  | otherwise = spark <$> bins
+  where sparks = " ▁▂▃▄▅▆▇█"
+        maxSpark = pred (length sparks)
+        max = maximum bins
+        spark n = sparks !! round ((fromIntegral n * ((1.0 :: Double) / fromIntegral max)) * fromIntegral maxSpark)
+
+listOf :: Expr a -> Expr [a]
+listOf element = do
+  n <- abs <$> StdRandom :: Expr Int
+  listOfN (n `mod` 10) element
+
+listOfN :: Int -> Expr a -> Expr [a]
+listOfN n element | n > 0 = (:) <$> element <*> listOfN (pred n) element
+                  | otherwise = pure []
+
+frequency :: [(Int, Expr a)] -> Expr a
+frequency [] = error "frequency called with empty list"
+frequency choices = (`mod` total) . abs <$> (StdRandom :: Expr Int) >>= pick sorted
+  where total = sum (fst <$> sorted)
+        sorted = reverse (sortOn fst choices)
+        pick ((i, a) : rest) n
+          | n <= i = a
+          | otherwise = pick rest (n - i)
+        pick _ _ = error "pick called with empty list"
 
 
 instance Functor Expr where
