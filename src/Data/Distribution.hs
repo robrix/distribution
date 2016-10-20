@@ -37,6 +37,30 @@ extendEnv (Bool v) x _ (Bool v') | v == v' = x
 extendEnv (Int v) x _ (Int v') | v == v' = x
 extendEnv _ _ env v' = env v'
 
+sample :: Int -> Env -> Expr a -> IO [a]
+sample n env expr
+  | n > 0 = case expr of
+    StdRandom -> traverse getStdRandom (replicate n random)
+    Lit x -> pure (replicate n x)
+    Get v -> pure (lookupEnv env v)
+    Let v e e' -> do
+      x <- sample' e
+      sample n (extendEnv v x env) e'
+    Not e -> fmap not <$> sample' e
+    Neg e -> fmap negate <$> sample' e
+    Abs e -> fmap abs <$> sample' e
+    Sig e -> fmap signum <$> sample' e
+    Add a b -> zipWith (+) <$> sample' a <*> sample' b
+    Mul a b -> zipWith (*) <$> sample' a <*> sample' b
+
+    Less a b -> zipWith (<) <$> sample' a <*> sample' b
+
+    If c a b -> zipWith3 ifThenElse <$> sample' c <*> sample' a <*> sample' b
+  | otherwise = pure []
+  where sample' :: Expr a -> IO [a]
+        sample' = sample n env
+        ifThenElse c a b = if c then a else b
+
 
 instance Num a => Num (Expr a) where
   (+) = Add
