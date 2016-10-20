@@ -18,6 +18,7 @@ library
   build-depends:       base >= 4.7 && < 5
                      , random
   default-language:    Haskell2010
+  ghc-options:         -Wall -Wno-name-shadowing
 
 test-suite distribution-test
   type:                exitcode-stdio-1.0
