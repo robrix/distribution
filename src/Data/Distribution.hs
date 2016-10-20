@@ -13,6 +13,8 @@ data Expr a where
   Sig :: Num a => Expr a -> Expr a
   Add :: Num a => Expr a -> Expr a -> Expr a
   Mul :: Num a => Expr a -> Expr a -> Expr a
+  Less :: Ord a => Expr a -> Expr a -> Expr Bool
+  If :: Expr Bool -> Expr a -> Expr a -> Expr a
 
 data Var a where
   Double :: String -> Var Double
