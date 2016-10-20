@@ -7,6 +7,7 @@ data Expr a where
   Lit :: a -> Expr a
   Get :: Var a -> Expr a
   Let :: Var a -> Expr a -> Expr b -> Expr b
+  Not :: Expr Bool -> Expr Bool
 
 data Var a where
   Double :: String -> Var Double
