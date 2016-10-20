@@ -80,6 +80,9 @@ sample env expr = case expr of
         sample' = sample env
         ifThenElse c a b = if c then a else b
 
+samples :: Int -> Env -> Expr a -> IO [a]
+samples n env = sequenceA . replicate n . sample env
+
 histogramFrom :: Real a => a -> a -> [a] -> [Int]
 histogramFrom from width samples
   | null samples = []
