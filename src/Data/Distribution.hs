@@ -17,8 +17,6 @@ data DistributionF a where
   Less :: Ord a => a -> a -> DistributionF Bool
   If :: Bool -> a -> a -> DistributionF a
 
-  Alt :: a -> a -> DistributionF a
-
 data Var a where
   Double :: String -> Var Double
   Bool :: String -> Var Bool
@@ -57,8 +55,6 @@ sample env = iterFreer algebra . fmap return
           Less a b -> cont $ a < b
 
           If c a b -> cont $ if c then a else b
-
-          Alt a b -> cont a <|> cont b
 
 samples :: Int -> Env -> Distribution a -> IO [a]
 samples n env = sequenceA . replicate n . sample env
@@ -117,12 +113,12 @@ unitDistribution = stdRandomR 0 1
 
 -- Instances
 
-instance Semigroup (Distribution a) where
-  a <> b = Alt a b `Then` id
+instance Semigroup a => Semigroup (Distribution a) where
+  (<>) = liftA2 (<>)
 
 instance Monoid a => Monoid (Distribution a) where
   mempty = pure mempty
-  mappend = (<>)
+  mappend = liftA2 mappend
 
 instance Num a => Num (Distribution a) where
   (+) = liftA2 (+)
