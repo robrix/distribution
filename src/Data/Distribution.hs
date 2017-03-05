@@ -24,21 +24,20 @@ data Var a where
 
 type Distribution = Freer DistributionF
 
-type Env = forall a. Var a -> a
-
-lookupEnv :: Env -> Var a -> a
-lookupEnv = id
+newtype Env = Env { lookupEnv :: forall a. Var a -> a }
 
 emptyEnv :: Env
-emptyEnv (Double v) = error ("unbound double variable " ++ v)
-emptyEnv (Bool v) = error ("unbound bool variable " ++ v)
-emptyEnv (Int v) = error ("unbound int variable " ++ v)
+emptyEnv = Env $ \ v -> case v of
+  Double v -> error ("unbound double variable " ++ v)
+  Bool   v -> error ("unbound bool variable " ++ v)
+  Int    v -> error ("unbound int variable " ++ v)
 
 extendEnv :: Var a -> a -> Env -> Env
-extendEnv (Double v) x _ (Double v') | v == v' = x
-extendEnv (Bool v) x _ (Bool v') | v == v' = x
-extendEnv (Int v) x _ (Int v') | v == v' = x
-extendEnv _ _ env v' = env v'
+extendEnv var x env = Env $ \ v -> case (var, v) of
+  (Double v, Double v') | v == v' -> x
+  (Bool v,   Bool v')   | v == v' -> x
+  (Int v,    Int v')    | v == v' -> x
+  _                               -> lookupEnv env v
 
 sample :: Env -> Distribution a -> IO a
 sample env = iterFreerA algebra
