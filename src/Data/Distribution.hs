@@ -162,3 +162,7 @@ instance Floating a => Floating (Expr a) where
   asinh = fmap asinh
   acosh = fmap acosh
   atanh = fmap atanh
+
+instance Bounded a => Bounded (Expr a) where
+  minBound = pure minBound
+  maxBound = pure maxBound
