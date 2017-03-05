@@ -8,6 +8,7 @@ import System.Random
 
 data Expr a where
   StdRandom :: Random a => Expr a
+  StdRandomR :: Random a => a -> a -> Expr a
   Lit :: a -> Expr a
   Get :: Var a -> Expr a
   Let :: Var a -> Expr a -> Expr b -> Expr b
@@ -52,6 +53,7 @@ extendEnv _ _ env v' = env v'
 sample :: Env -> Expr a -> IO a
 sample env expr = case expr of
   StdRandom -> getStdRandom random
+  StdRandomR from to -> getStdRandom (randomR (from, to))
   Lit x -> pure x
   Get v -> pure (lookupEnv env v)
   Let v e e' -> do
