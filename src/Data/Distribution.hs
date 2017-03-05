@@ -41,7 +41,7 @@ extendEnv (Int v) x _ (Int v') | v == v' = x
 extendEnv _ _ env v' = env v'
 
 sample :: Env -> Distribution a -> IO a
-sample env = iterFreer algebra . fmap return
+sample env = iterFreerA algebra
   where algebra :: DistributionF x -> (x -> IO a) -> IO a
         algebra distribution cont = case distribution of
           StdRandom -> getStdRandom random >>= cont
