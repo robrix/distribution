@@ -3,6 +3,7 @@ module Data.Distribution where
 
 import Control.Applicative
 import Control.Monad.Free.Freer
+import Control.Monad.State
 import Data.List (partition, sortOn)
 import Data.Semigroup
 import System.Random
@@ -11,7 +12,7 @@ data DistributionF a where
   StdRandom :: Random a => DistributionF a
   StdRandomR :: Random a => a -> a -> DistributionF a
   Get :: Var a -> DistributionF a
-  Let :: Var a -> Distribution a -> Distribution b -> DistributionF b
+  Let :: Var a -> a -> a -> DistributionF a
   Not :: Bool -> DistributionF Bool
 
   Less :: Ord a => a -> a -> DistributionF Bool
@@ -40,15 +41,17 @@ extendEnv var x env = Env $ \ v -> case (var, v) of
   _                               -> lookupEnv env v
 
 sample :: Env -> Distribution a -> IO a
-sample env = iterFreerA algebra
-  where algebra :: DistributionF x -> (x -> IO a) -> IO a
+sample = flip (evalStateT . iterFreerA algebra)
+  where algebra :: DistributionF x -> (x -> StateT Env IO a) -> StateT Env IO a
         algebra distribution cont = case distribution of
-          StdRandom -> getStdRandom random >>= cont
-          StdRandomR from to -> getStdRandom (randomR (from, to)) >>= cont
-          Get v -> cont (lookupEnv env v)
+          StdRandom -> lift (getStdRandom random) >>= cont
+          StdRandomR from to -> lift (getStdRandom (randomR (from, to))) >>= cont
+          Get v -> do
+            env <- get
+            cont (lookupEnv env v)
           Let v e e' -> do
-            x <- sample env e
-            sample (extendEnv v x env) e' >>= cont
+            modify (extendEnv v e)
+            cont e'
           Not e -> cont (not e)
 
           Less a b -> cont $ a < b
