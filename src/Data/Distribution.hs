@@ -2,6 +2,7 @@
 module Data.Distribution where
 
 import Control.Applicative
+import Control.Monad.Free.Freer
 import Data.List (partition, sortOn)
 import Data.Semigroup
 import System.Random

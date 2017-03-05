@@ -1,6 +1,14 @@
 resolver: lts-8.3
 packages:
 - '.'
+- location:
+    git: https://github.com/robrix/leancheck.git
+    commit: 2581ec98f55b640188163170b812a1d600827888
+  extra-dep: true
+- location:
+    git: https://github.com/robrix/freer-cofreer.git
+    commit: 8953df8be30c9bf7983b91a44c6d83108e204393
+  extra-dep: true
 extra-deps: []
 flags: {}
 extra-package-dbs: []
