@@ -118,6 +118,10 @@ frequency choices = (`mod` total) . abs <$> (StdRandom :: Expr Int) >>= pick sor
         pick _ _ = error "pick called with empty list"
 
 
+unitDistribution :: (Fractional a, Random a) => Expr a
+unitDistribution = StdRandomR 0 1
+
+
 -- Instances
 
 instance Functor Expr where
