@@ -13,14 +13,7 @@ data DistributionF a where
   Get :: Var a -> DistributionF a
   Let :: Var a -> Distribution a -> Distribution b -> DistributionF b
   Not :: Bool -> DistributionF Bool
-  Neg :: Num a => a -> DistributionF a
-  Abs :: Num a => a -> DistributionF a
-  Sig :: Num a => a -> DistributionF a
-  Exp :: Floating a => a -> DistributionF a
-  Log :: Floating a => a -> DistributionF a
 
-  Add :: Num a => a -> a -> DistributionF a
-  Mul :: Num a => a -> a -> DistributionF a
   Less :: Ord a => a -> a -> DistributionF Bool
   If :: Bool -> a -> a -> DistributionF a
 
@@ -50,29 +43,22 @@ extendEnv (Int v) x _ (Int v') | v == v' = x
 extendEnv _ _ env v' = env v'
 
 sample :: Env -> Distribution a -> IO a
-sample env distribution = case distribution of
-  Return a -> return a
-  d `Then` cont -> case d of
-    StdRandom -> getStdRandom random >>= sample env . cont
-    StdRandomR from to -> getStdRandom (randomR (from, to)) >>= sample env . cont
-    Get v -> sample env (cont (lookupEnv env v))
-    Let v e e' -> do
-      x <- sample env e
-      sample (extendEnv v x env) e' >>= sample env . cont
-    Not e -> sample env . cont $ not e
-    Neg e -> sample env . cont $ negate e
-    Abs e -> sample env . cont $ abs e
-    Sig e -> sample env . cont $ signum e
-    Exp e -> sample env . cont $ exp e
-    Log e -> sample env . cont $ log e
-    Add a b -> sample env . cont $ a + b
-    Mul a b -> sample env . cont $ a * b
+sample env = iterFreer algebra . fmap return
+  where algebra :: DistributionF x -> (x -> IO a) -> IO a
+        algebra distribution cont = case distribution of
+          StdRandom -> getStdRandom random >>= cont
+          StdRandomR from to -> getStdRandom (randomR (from, to)) >>= cont
+          Get v -> cont (lookupEnv env v)
+          Let v e e' -> do
+            x <- sample env e
+            sample (extendEnv v x env) e' >>= cont
+          Not e -> cont (not e)
 
-    Less a b -> sample env . cont $ a < b
+          Less a b -> cont $ a < b
 
-    If c a b -> sample env . cont $ if c then a else b
+          If c a b -> cont $ if c then a else b
 
-    Alt a b -> sample env (cont a) <|> sample env (cont b)
+          Alt a b -> cont a <|> cont b
 
 samples :: Int -> Env -> Distribution a -> IO [a]
 samples n env = sequenceA . replicate n . sample env
@@ -139,12 +125,12 @@ instance Monoid a => Monoid (Distribution a) where
   mappend = (<>)
 
 instance Num a => Num (Distribution a) where
-  a + b = Add a b `Then` id
-  a * b = Mul a b `Then` id
-  abs e = Abs e `Then` id
-  signum e = Sig e `Then` id
+  (+) = liftA2 (+)
+  (*) = liftA2 (*)
+  abs = fmap abs
+  signum = fmap signum
   fromInteger = pure . fromInteger
-  negate e = Neg e `Then` id
+  negate = fmap negate
 
 instance Fractional a => Fractional (Distribution a) where
   fromRational = pure . fromRational
@@ -152,8 +138,8 @@ instance Fractional a => Fractional (Distribution a) where
 
 instance Floating a => Floating (Distribution a) where
   pi = pure pi
-  exp e = Exp e `Then` id
-  log e = Log e `Then` id
+  exp = fmap exp
+  log = fmap log
   sin = fmap sin
   cos = fmap cos
   tan = fmap tan
