@@ -52,7 +52,7 @@ extendEnv (Int v) x _ (Int v') | v == v' = x
 extendEnv _ _ env v' = env v'
 
 sample :: Env -> Distribution a -> IO a
-sample env Distribution = case Distribution of
+sample env distribution = case distribution of
   StdRandom -> getStdRandom random
   StdRandomR from to -> getStdRandom (randomR (from, to))
   Lit x -> pure x
