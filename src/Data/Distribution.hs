@@ -7,28 +7,28 @@ import Data.List (partition, sortOn)
 import Data.Semigroup
 import System.Random
 
-data Expr a where
-  StdRandom :: Random a => Expr a
-  StdRandomR :: Random a => a -> a -> Expr a
-  Lit :: a -> Expr a
-  Get :: Var a -> Expr a
-  Let :: Var a -> Expr a -> Expr b -> Expr b
-  Not :: Expr Bool -> Expr Bool
-  Neg :: Num a => Expr a -> Expr a
-  Abs :: Num a => Expr a -> Expr a
-  Sig :: Num a => Expr a -> Expr a
-  Exp :: Floating a => Expr a -> Expr a
-  Log :: Floating a => Expr a -> Expr a
+data Distribution a where
+  StdRandom :: Random a => Distribution a
+  StdRandomR :: Random a => a -> a -> Distribution a
+  Lit :: a -> Distribution a
+  Get :: Var a -> Distribution a
+  Let :: Var a -> Distribution a -> Distribution b -> Distribution b
+  Not :: Distribution Bool -> Distribution Bool
+  Neg :: Num a => Distribution a -> Distribution a
+  Abs :: Num a => Distribution a -> Distribution a
+  Sig :: Num a => Distribution a -> Distribution a
+  Exp :: Floating a => Distribution a -> Distribution a
+  Log :: Floating a => Distribution a -> Distribution a
 
-  Add :: Num a => Expr a -> Expr a -> Expr a
-  Mul :: Num a => Expr a -> Expr a -> Expr a
-  Less :: Ord a => Expr a -> Expr a -> Expr Bool
-  If :: Expr Bool -> Expr a -> Expr a -> Expr a
+  Add :: Num a => Distribution a -> Distribution a -> Distribution a
+  Mul :: Num a => Distribution a -> Distribution a -> Distribution a
+  Less :: Ord a => Distribution a -> Distribution a -> Distribution Bool
+  If :: Distribution Bool -> Distribution a -> Distribution a -> Distribution a
 
-  Map :: (b -> a) -> Expr b -> Expr a
-  App :: (b -> c -> a) -> Expr b -> Expr c -> Expr a
-  Join :: Expr (Expr a) -> Expr a
-  Alt :: Expr a -> Expr a -> Expr a
+  Map :: (b -> a) -> Distribution b -> Distribution a
+  App :: (b -> c -> a) -> Distribution b -> Distribution c -> Distribution a
+  Join :: Distribution (Distribution a) -> Distribution a
+  Alt :: Distribution a -> Distribution a -> Distribution a
 
 data Var a where
   Double :: String -> Var Double
@@ -51,8 +51,8 @@ extendEnv (Bool v) x _ (Bool v') | v == v' = x
 extendEnv (Int v) x _ (Int v') | v == v' = x
 extendEnv _ _ env v' = env v'
 
-sample :: Env -> Expr a -> IO a
-sample env expr = case expr of
+sample :: Env -> Distribution a -> IO a
+sample env Distribution = case Distribution of
   StdRandom -> getStdRandom random
   StdRandomR from to -> getStdRandom (randomR (from, to))
   Lit x -> pure x
@@ -77,11 +77,11 @@ sample env expr = case expr of
   App f a b -> f <$> sample' a <*> sample' b
   Alt a b -> sample' a <|> sample' b
   Join a -> sample' a >>= sample'
-  where sample' :: Expr a -> IO a
+  where sample' :: Distribution a -> IO a
         sample' = sample env
         ifThenElse c a b = if c then a else b
 
-samples :: Int -> Env -> Expr a -> IO [a]
+samples :: Int -> Env -> Distribution a -> IO [a]
 samples n env = sequenceA . replicate n . sample env
 
 histogramFrom :: Real a => a -> a -> [a] -> [Int]
@@ -99,18 +99,18 @@ sparkify bins
         max = maximum bins
         spark n = sparks !! round ((fromIntegral n * ((1.0 :: Double) / fromIntegral max)) * fromIntegral maxSpark)
 
-listOf :: Expr a -> Expr [a]
+listOf :: Distribution a -> Distribution [a]
 listOf element = do
-  n <- abs <$> StdRandom :: Expr Int
+  n <- abs <$> StdRandom :: Distribution Int
   listOfN (n `mod` 10) element
 
-listOfN :: Int -> Expr a -> Expr [a]
+listOfN :: Int -> Distribution a -> Distribution [a]
 listOfN n element | n > 0 = (:) <$> element <*> listOfN (pred n) element
                   | otherwise = pure []
 
-frequency :: [(Int, Expr a)] -> Expr a
+frequency :: [(Int, Distribution a)] -> Distribution a
 frequency [] = error "frequency called with empty list"
-frequency choices = (`mod` total) . abs <$> (StdRandom :: Expr Int) >>= pick sorted
+frequency choices = (`mod` total) . abs <$> (StdRandom :: Distribution Int) >>= pick sorted
   where total = sum (fst <$> sorted)
         sorted = reverse (sortOn fst choices)
         pick ((i, a) : rest) n
@@ -119,31 +119,31 @@ frequency choices = (`mod` total) . abs <$> (StdRandom :: Expr Int) >>= pick sor
         pick _ _ = error "pick called with empty list"
 
 
-unitDistribution :: (Fractional a, Random a) => Expr a
+unitDistribution :: (Fractional a, Random a) => Distribution a
 unitDistribution = StdRandomR 0 1
 
 
 -- Instances
 
-instance Functor Expr where
+instance Functor Distribution where
   fmap = Map
 
-instance Applicative Expr where
+instance Applicative Distribution where
   pure = Lit
   (<*>) = App ($)
 
-instance Monad Expr where
+instance Monad Distribution where
   return = pure
   a >>= f = Join (fmap f a)
 
-instance Semigroup (Expr a) where
+instance Semigroup (Distribution a) where
   (<>) = Alt
 
-instance Monoid a => Monoid (Expr a) where
+instance Monoid a => Monoid (Distribution a) where
   mempty = pure mempty
   mappend = (<>)
 
-instance Num a => Num (Expr a) where
+instance Num a => Num (Distribution a) where
   (+) = Add
   (*) = Mul
   abs = Abs
@@ -151,11 +151,11 @@ instance Num a => Num (Expr a) where
   fromInteger = pure . fromInteger
   negate = Neg
 
-instance Fractional a => Fractional (Expr a) where
+instance Fractional a => Fractional (Distribution a) where
   fromRational = pure . fromRational
   recip = fmap recip
 
-instance Floating a => Floating (Expr a) where
+instance Floating a => Floating (Distribution a) where
   pi = Lit pi
   exp = Exp
   log = Log
@@ -172,6 +172,6 @@ instance Floating a => Floating (Expr a) where
   acosh = fmap acosh
   atanh = fmap atanh
 
-instance Bounded a => Bounded (Expr a) where
+instance Bounded a => Bounded (Distribution a) where
   minBound = pure minBound
   maxBound = pure maxBound
