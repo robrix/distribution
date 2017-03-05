@@ -1,4 +1,4 @@
-{-# LANGUAGE GADTs, RankNTypes #-}
+{-# LANGUAGE FlexibleInstances, GADTs, RankNTypes #-}
 module Data.Distribution where
 
 import Control.Applicative
@@ -7,33 +7,31 @@ import Data.List (partition, sortOn)
 import Data.Semigroup
 import System.Random
 
-data Distribution a where
-  StdRandom :: Random a => Distribution a
-  StdRandomR :: Random a => a -> a -> Distribution a
-  Lit :: a -> Distribution a
-  Get :: Var a -> Distribution a
-  Let :: Var a -> Distribution a -> Distribution b -> Distribution b
-  Not :: Distribution Bool -> Distribution Bool
-  Neg :: Num a => Distribution a -> Distribution a
-  Abs :: Num a => Distribution a -> Distribution a
-  Sig :: Num a => Distribution a -> Distribution a
-  Exp :: Floating a => Distribution a -> Distribution a
-  Log :: Floating a => Distribution a -> Distribution a
+data DistributionF a where
+  StdRandom :: Random a => DistributionF a
+  StdRandomR :: Random a => a -> a -> DistributionF a
+  Get :: Var a -> DistributionF a
+  Let :: Var a -> Distribution a -> Distribution b -> DistributionF b
+  Not :: Bool -> DistributionF Bool
+  Neg :: Num a => a -> DistributionF a
+  Abs :: Num a => a -> DistributionF a
+  Sig :: Num a => a -> DistributionF a
+  Exp :: Floating a => a -> DistributionF a
+  Log :: Floating a => a -> DistributionF a
 
-  Add :: Num a => Distribution a -> Distribution a -> Distribution a
-  Mul :: Num a => Distribution a -> Distribution a -> Distribution a
-  Less :: Ord a => Distribution a -> Distribution a -> Distribution Bool
-  If :: Distribution Bool -> Distribution a -> Distribution a -> Distribution a
+  Add :: Num a => a -> a -> DistributionF a
+  Mul :: Num a => a -> a -> DistributionF a
+  Less :: Ord a => a -> a -> DistributionF Bool
+  If :: Bool -> a -> a -> DistributionF a
 
-  Map :: (b -> a) -> Distribution b -> Distribution a
-  App :: (b -> c -> a) -> Distribution b -> Distribution c -> Distribution a
-  Join :: Distribution (Distribution a) -> Distribution a
-  Alt :: Distribution a -> Distribution a -> Distribution a
+  Alt :: a -> a -> DistributionF a
 
 data Var a where
   Double :: String -> Var Double
   Bool :: String -> Var Bool
   Int :: String -> Var Int
+
+type Distribution = Freer DistributionF
 
 type Env = forall a. Var a -> a
 
@@ -53,36 +51,34 @@ extendEnv _ _ env v' = env v'
 
 sample :: Env -> Distribution a -> IO a
 sample env distribution = case distribution of
-  StdRandom -> getStdRandom random
-  StdRandomR from to -> getStdRandom (randomR (from, to))
-  Lit x -> pure x
-  Get v -> pure (lookupEnv env v)
-  Let v e e' -> do
-    x <- sample' e
-    sample (extendEnv v x env) e'
-  Not e -> not <$> sample' e
-  Neg e -> negate <$> sample' e
-  Abs e -> abs <$> sample' e
-  Sig e -> signum <$> sample' e
-  Exp e -> exp <$> sample' e
-  Log e -> log <$> sample' e
-  Add a b -> (+) <$> sample' a <*> sample' b
-  Mul a b -> (*) <$> sample' a <*> sample' b
+  Return a -> return a
+  d `Then` cont -> case d of
+    StdRandom -> getStdRandom random >>= sample env . cont
+    StdRandomR from to -> getStdRandom (randomR (from, to)) >>= sample env . cont
+    Get v -> sample env (cont (lookupEnv env v))
+    Let v e e' -> do
+      x <- sample env e
+      sample (extendEnv v x env) e' >>= sample env . cont
+    Not e -> sample env . cont $ not e
+    Neg e -> sample env . cont $ negate e
+    Abs e -> sample env . cont $ abs e
+    Sig e -> sample env . cont $ signum e
+    Exp e -> sample env . cont $ exp e
+    Log e -> sample env . cont $ log e
+    Add a b -> sample env . cont $ a + b
+    Mul a b -> sample env . cont $ a * b
 
-  Less a b -> (<) <$> sample' a <*> sample' b
+    Less a b -> sample env . cont $ a < b
 
-  If c a b -> ifThenElse <$> sample' c <*> sample' a <*> sample' b
+    If c a b -> sample env . cont $ if c then a else b
 
-  Map f a -> f <$> sample' a
-  App f a b -> f <$> sample' a <*> sample' b
-  Alt a b -> sample' a <|> sample' b
-  Join a -> sample' a >>= sample'
-  where sample' :: Distribution a -> IO a
-        sample' = sample env
-        ifThenElse c a b = if c then a else b
+    Alt a b -> sample env (cont a) <|> sample env (cont b)
 
 samples :: Int -> Env -> Distribution a -> IO [a]
 samples n env = sequenceA . replicate n . sample env
+
+
+-- Inspection
 
 histogramFrom :: Real a => a -> a -> [a] -> [Int]
 histogramFrom from width samples
@@ -99,10 +95,20 @@ sparkify bins
         max = maximum bins
         spark n = sparks !! round ((fromIntegral n * ((1.0 :: Double) / fromIntegral max)) * fromIntegral maxSpark)
 
+
+-- Constructors
+
+stdRandom :: Random a => Distribution a
+stdRandom = StdRandom `Then` return
+
+stdRandomR :: Random a => a -> a -> Distribution a
+stdRandomR a b = StdRandomR a b `Then` return
+
+
 listOf :: Distribution a -> Distribution [a]
 listOf element = do
-  n <- abs <$> StdRandom :: Distribution Int
-  listOfN (n `mod` 10) element
+  n <- stdRandomR 0 10 :: Distribution Int
+  listOfN n element
 
 listOfN :: Int -> Distribution a -> Distribution [a]
 listOfN n element | n > 0 = (:) <$> element <*> listOfN (pred n) element
@@ -110,7 +116,7 @@ listOfN n element | n > 0 = (:) <$> element <*> listOfN (pred n) element
 
 frequency :: [(Int, Distribution a)] -> Distribution a
 frequency [] = error "frequency called with empty list"
-frequency choices = (`mod` total) . abs <$> (StdRandom :: Distribution Int) >>= pick sorted
+frequency choices = (stdRandomR 0 total :: Distribution Int) >>= pick sorted
   where total = sum (fst <$> sorted)
         sorted = reverse (sortOn fst choices)
         pick ((i, a) : rest) n
@@ -120,45 +126,34 @@ frequency choices = (`mod` total) . abs <$> (StdRandom :: Distribution Int) >>= 
 
 
 unitDistribution :: (Fractional a, Random a) => Distribution a
-unitDistribution = StdRandomR 0 1
+unitDistribution = stdRandomR 0 1
 
 
 -- Instances
 
-instance Functor Distribution where
-  fmap = Map
-
-instance Applicative Distribution where
-  pure = Lit
-  (<*>) = App ($)
-
-instance Monad Distribution where
-  return = pure
-  a >>= f = Join (fmap f a)
-
 instance Semigroup (Distribution a) where
-  (<>) = Alt
+  a <> b = Alt a b `Then` id
 
 instance Monoid a => Monoid (Distribution a) where
   mempty = pure mempty
   mappend = (<>)
 
 instance Num a => Num (Distribution a) where
-  (+) = Add
-  (*) = Mul
-  abs = Abs
-  signum = Sig
+  a + b = Add a b `Then` id
+  a * b = Mul a b `Then` id
+  abs e = Abs e `Then` id
+  signum e = Sig e `Then` id
   fromInteger = pure . fromInteger
-  negate = Neg
+  negate e = Neg e `Then` id
 
 instance Fractional a => Fractional (Distribution a) where
   fromRational = pure . fromRational
   recip = fmap recip
 
 instance Floating a => Floating (Distribution a) where
-  pi = Lit pi
-  exp = Exp
-  log = Log
+  pi = pure pi
+  exp e = Exp e `Then` id
+  log e = Log e `Then` id
   sin = fmap sin
   cos = fmap cos
   tan = fmap tan
