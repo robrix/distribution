@@ -8,6 +8,7 @@ import System.Random
 
 data Expr a where
   StdRandom :: Random a => Expr a
+  StdRandomR :: Random a => a -> a -> Expr a
   Lit :: a -> Expr a
   Get :: Var a -> Expr a
   Let :: Var a -> Expr a -> Expr b -> Expr b
@@ -52,6 +53,7 @@ extendEnv _ _ env v' = env v'
 sample :: Env -> Expr a -> IO a
 sample env expr = case expr of
   StdRandom -> getStdRandom random
+  StdRandomR from to -> getStdRandom (randomR (from, to))
   Lit x -> pure x
   Get v -> pure (lookupEnv env v)
   Let v e e' -> do
@@ -116,6 +118,12 @@ frequency choices = (`mod` total) . abs <$> (StdRandom :: Expr Int) >>= pick sor
         pick _ _ = error "pick called with empty list"
 
 
+unitDistribution :: (Fractional a, Random a) => Expr a
+unitDistribution = StdRandomR 0 1
+
+
+-- Instances
+
 instance Functor Expr where
   fmap = Map
 
@@ -139,11 +147,11 @@ instance Num a => Num (Expr a) where
   (*) = Mul
   abs = Abs
   signum = Sig
-  fromInteger = Lit . fromInteger
+  fromInteger = pure . fromInteger
   negate = Neg
 
 instance Fractional a => Fractional (Expr a) where
-  fromRational = Lit . fromRational
+  fromRational = pure . fromRational
   recip = fmap recip
 
 instance Floating a => Floating (Expr a) where
@@ -162,3 +170,7 @@ instance Floating a => Floating (Expr a) where
   asinh = fmap asinh
   acosh = fmap acosh
   atanh = fmap atanh
+
+instance Bounded a => Bounded (Expr a) where
+  minBound = pure minBound
+  maxBound = pure maxBound
