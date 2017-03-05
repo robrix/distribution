@@ -141,11 +141,11 @@ instance Num a => Num (Expr a) where
   (*) = Mul
   abs = Abs
   signum = Sig
-  fromInteger = Lit . fromInteger
+  fromInteger = pure . fromInteger
   negate = Neg
 
 instance Fractional a => Fractional (Expr a) where
-  fromRational = Lit . fromRational
+  fromRational = pure . fromRational
   recip = fmap recip
 
 instance Floating a => Floating (Expr a) where
