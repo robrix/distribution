@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, GADTs, RankNTypes #-}
+{-# LANGUAGE FlexibleInstances, GADTs, RankNTypes, StandaloneDeriving #-}
 module Data.Distribution where
 
 import Control.Applicative
@@ -154,3 +154,5 @@ instance Floating a => Floating (Distribution a) where
 instance Bounded a => Bounded (Distribution a) where
   minBound = pure minBound
   maxBound = pure maxBound
+
+deriving instance Show (Var a)
