@@ -89,6 +89,11 @@ stdRandomR :: Random a => a -> a -> Distribution a
 stdRandomR a b = StdRandomR a b `Then` return
 
 
+if' :: Distribution Bool -> Distribution a -> Distribution a -> Distribution a
+if' c a b = ifThenElse <$> c <*> a <*> b
+  where ifThenElse c a b = if c then a else b
+
+
 listOf :: Distribution a -> Distribution [a]
 listOf element = do
   n <- stdRandomR 0 10 :: Distribution Int
