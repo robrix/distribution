@@ -4,6 +4,7 @@ module Data.Distribution where
 import Control.Applicative
 import Control.Monad.Free.Freer
 import Control.Monad.State
+import Data.Functor.Classes
 import Data.List (partition, sortOn)
 import Data.Semigroup
 import System.Random
@@ -150,5 +151,15 @@ instance Floating a => Floating (Distribution a) where
 instance Bounded a => Bounded (Distribution a) where
   minBound = pure minBound
   maxBound = pure maxBound
+
+instance Show1 DistributionF where
+  liftShowsPrec sp _ d dist = case dist of
+    StdRandom -> showString "StdRandom"
+    StdRandomR a b -> showsBinaryWith sp sp "StdRandomR" d a b
+    Get a -> showsUnaryWith showsPrec "Get" d a
+    Let var value body -> showsTernaryWith showsPrec sp sp "Let" d var value body
+    where showsTernaryWith :: (Int -> a -> ShowS) -> (Int -> b -> ShowS) -> (Int -> c -> ShowS) -> String -> Int -> a -> b -> c -> ShowS
+          showsTernaryWith sp1 sp2 sp3 name d x y z = showParen (d > 10) $
+            showString name . showChar ' ' . sp1 11 x . showChar ' ' . sp2 11 y . showChar ' ' . sp3 11 z
 
 deriving instance Show (Var a)
