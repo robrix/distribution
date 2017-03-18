@@ -1,9 +1,10 @@
-{-# LANGUAGE FlexibleInstances, GADTs, RankNTypes #-}
+{-# LANGUAGE FlexibleInstances, GADTs, RankNTypes, StandaloneDeriving #-}
 module Data.Distribution where
 
 import Control.Applicative
 import Control.Monad.Free.Freer
 import Control.Monad.State
+import Data.Functor.Classes
 import Data.List (partition, sortOn)
 import Data.Semigroup
 import System.Random
@@ -13,10 +14,6 @@ data DistributionF a where
   StdRandomR :: Random a => a -> a -> DistributionF a
   Get :: Var a -> DistributionF a
   Let :: Var a -> a -> a -> DistributionF a
-  Not :: Bool -> DistributionF Bool
-
-  Less :: Ord a => a -> a -> DistributionF Bool
-  If :: Bool -> a -> a -> DistributionF a
 
 data Var a where
   Double :: String -> Var Double
@@ -52,11 +49,6 @@ sample = flip (evalStateT . iterFreerA algebra)
           Let v e e' -> do
             modify (extendEnv v e)
             cont e'
-          Not e -> cont (not e)
-
-          Less a b -> cont $ a < b
-
-          If c a b -> cont $ if c then a else b
 
 samples :: Int -> Env -> Distribution a -> IO [a]
 samples n env = sequenceA . replicate n . sample env
@@ -87,6 +79,11 @@ stdRandom = StdRandom `Then` return
 
 stdRandomR :: Random a => a -> a -> Distribution a
 stdRandomR a b = StdRandomR a b `Then` return
+
+
+if' :: Distribution Bool -> Distribution a -> Distribution a -> Distribution a
+if' c a b = ifThenElse <$> c <*> a <*> b
+  where ifThenElse c a b = if c then a else b
 
 
 listOf :: Distribution a -> Distribution [a]
@@ -154,3 +151,15 @@ instance Floating a => Floating (Distribution a) where
 instance Bounded a => Bounded (Distribution a) where
   minBound = pure minBound
   maxBound = pure maxBound
+
+instance Show1 DistributionF where
+  liftShowsPrec sp _ d dist = case dist of
+    StdRandom -> showString "StdRandom"
+    StdRandomR a b -> showsBinaryWith sp sp "StdRandomR" d a b
+    Get a -> showsUnaryWith showsPrec "Get" d a
+    Let var value body -> showsTernaryWith showsPrec sp sp "Let" d var value body
+    where showsTernaryWith :: (Int -> a -> ShowS) -> (Int -> b -> ShowS) -> (Int -> c -> ShowS) -> String -> Int -> a -> b -> c -> ShowS
+          showsTernaryWith sp1 sp2 sp3 name d x y z = showParen (d > 10) $
+            showString name . showChar ' ' . sp1 11 x . showChar ' ' . sp2 11 y . showChar ' ' . sp3 11 z
+
+deriving instance Show (Var a)
