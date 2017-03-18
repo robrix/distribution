@@ -13,10 +13,6 @@ data DistributionF a where
   StdRandomR :: Random a => a -> a -> DistributionF a
   Get :: Var a -> DistributionF a
   Let :: Var a -> a -> a -> DistributionF a
-  Not :: Bool -> DistributionF Bool
-
-  Less :: Ord a => a -> a -> DistributionF Bool
-  If :: Bool -> a -> a -> DistributionF a
 
 data Var a where
   Double :: String -> Var Double
@@ -52,11 +48,6 @@ sample = flip (evalStateT . iterFreerA algebra)
           Let v e e' -> do
             modify (extendEnv v e)
             cont e'
-          Not e -> cont (not e)
-
-          Less a b -> cont $ a < b
-
-          If c a b -> cont $ if c then a else b
 
 samples :: Int -> Env -> Distribution a -> IO [a]
 samples n env = sequenceA . replicate n . sample env
